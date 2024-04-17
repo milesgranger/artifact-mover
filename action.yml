@@ -37,29 +37,80 @@ inputs:
       Unique id to this workflow, recommend keeping the default setting unless you know
       what you're doing
     default: ${{ github.repository }}/${{ github.run_number }}
+  version:
+    description: version of artifact-mover to use, recommended to use default here
+    default: v0.1.0
 
 runs:
   using: composite
   steps:
     - uses: dtolnay/rust-toolchain@stable
+      if: ${{ inputs.version == 'main' }}
         
     - shell: bash
+      if: ${{ inputs.version == 'main' }}
       run: |
-        # set -x
+        cargo run --release -- \
+          --bucket ${{ inputs.bucket }} \
+          --name ${{ inputs.name }} \
+          --path ${{ inputs.path }} \
+          --identifier ${{ inputs.identifier }} \
+          --profile ${{ inputs.profile }} \
+          --prefix-key ${{ inputs.prefix-key }} \
+          ${{ inputs.action }} 
 
-        # curl \
-        #   -o artifact-mover.tar.gz \
-        #   --retry 5 \
-        #   --connect-timeout 10 \
-        #   --retry-connrefused \
-        #   --retry-delay 2 \
-        #   https://github.com/milesgranger/artifact-mover/releases/download/v${{ inputs.version }}/artifact-mover.tar.gz
+    - shell: bash
+      if: ${{ inputs.version != 'main' && runner.os == 'macOS' && runner.arch == 'ARM64' }}
+      run: |
+        echo URL="https://github.com/milesgranger/artifact-mover/releases/download/${{ inputs.version }}/artifact-mover-aarch64-apple-darwin.zip" >> $GITHUB_ENV
 
-        # tar -xvzf artifact-mover.tar.gz -C ./bin
-        # chmod +x ./bin/artifact-mover
+    - shell: bash
+      if: ${{ inputs.version != 'main' && runner.os == 'macOS' && runner.arch == 'x64' }}
+      run: |
+        echo URL="https://github.com/milesgranger/artifact-mover/releases/download/${{ inputs.version }}/artifact-mover-x86_64-apple-darwin.zip" >> $GITHUB_ENV
 
-        # ./bin/artifact-mover \
-        cargo run -- \
+    - shell: bash
+      if: ${{ inputs.version != 'main' && runner.os == 'Windows' && runner.arch == 'x64' }}
+      run: |
+        echo URL="https://github.com/milesgranger/artifact-mover/releases/download/${{ inputs.version }}/artifact-mover-x86_64-pc-windows-msvc.zip" >> $GITHUB_ENV
+
+    - shell: bash
+      if: ${{ inputs.version != 'main' && runner.os == 'Linux' && runner.arch == 'x64' }}
+      run: |
+        echo URL="https://github.com/milesgranger/artifact-mover/releases/download/${{ inputs.version }}/artifact-mover-x86_64-unknown-linux-gnu.zip" >> $GITHUB_ENV
+
+    - shell: bash
+      if: inputs.version != 'main'
+      run: |
+        set -x
+
+        curl \
+          -o artifact-mover.zip \
+          --retry 5 \
+          --connect-timeout 10 \
+          --retry-connrefused \
+          --retry-delay 2 \
+          $URL
+
+        unzip artifact-mover.zip
+        chmod +x ./artifact-mover
+
+    - shell: bash
+      if: ${{ inputs.version != 'main' && runner.os != 'Windows' }}
+      run: |
+        ./artifact-mover \
+          --bucket ${{ inputs.bucket }} \
+          --name ${{ inputs.name }} \
+          --path ${{ inputs.path }} \
+          --identifier ${{ inputs.identifier }} \
+          --profile ${{ inputs.profile }} \
+          --prefix-key ${{ inputs.prefix-key }} \
+          ${{ inputs.action }} 
+
+    - shell: bash
+      if: ${{ inputs.version != 'main' && runner.os == 'Windows' }}
+      run: |
+        ./artifact-mover.exe \
           --bucket ${{ inputs.bucket }} \
           --name ${{ inputs.name }} \
           --path ${{ inputs.path }} \
