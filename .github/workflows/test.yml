@@ -11,9 +11,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Test
+  test-upload:
     runs-on: ${{ matrix.os }}
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: us-east-1
     strategy:
       fail-fast: false
       matrix:
@@ -24,12 +27,12 @@ jobs:
           - windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Create artifact
+      - name: Create artifacts
         shell: bash
         run: |
-          ls -l > artifact.txt
+          ls -l > artifact-${{ matrix.os }}.txt
           mkdir artifacts
-          cp artifact.txt artifacts/
+          cp artifact-${{ matrix.os }}.txt artifacts/
 
       - name: artifact-mover upload single file
         uses: ./
@@ -37,7 +40,7 @@ jobs:
           action: upload
           bucket: ${{ secrets.TEST_BUCKET }}
           name: test-artifact-single-file
-          path: ./artifact.txt
+          path: ./artifact-${{ matrix.os }}.txt
 
       - name: artifact-mover upload directory
         uses: ./
@@ -47,19 +50,58 @@ jobs:
           name: test-artifact-directory
           path: artifacts
 
-      - name: Remove artifacts
-        shell: bash
-        run: |
-          rm artifact.txt
-          rm -rf artifacts/
 
+  # Test makes sure it downloads all the artifacts generated across the matrix
+  # with the same artifact name; same behavior as upload-artifact action
+  test-download:
+    needs: [test-upload]
+    runs-on: ${{ matrix.os }}
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: us-east-1
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-13
+          - macos-14
+          - ubuntu-latest
+          - windows-latest
+    steps:
+      - uses: actions/checkout@v4
       - name: artifact-mover download single file
         uses: ./
         with:
           action: download
           bucket: ${{ secrets.TEST_BUCKET }}
           name: test-artifact-single-file
-          path: ./artifact.txt
+          path: ./
+
+      - name: Test single file downloaded
+        if: runner.os == 'Linux'
+        run: |
+          tree -L 2
+
+          files=("macos-13" "macos-14" "ubuntu-latest" "windows-latest")
+
+          for file in "${files[@]}"; do
+          
+            if [ -f "artifact-$file.txt" ]; then
+              echo "File $file exists"
+            else
+              echo "Expected ./artifact-$file.txt not found"
+              exit 1
+            fi
+
+            if test -f artifacts/artifact-$file.txt; then
+              echo "Directory file found before it was downloaded"
+              exit 1
+            else
+              echo "Directory file not found, as expected."
+            fi
+
+          done
 
       - name: artifact-mover download directory
         uses: ./
@@ -68,6 +110,39 @@ jobs:
           bucket: ${{ secrets.TEST_BUCKET }}
           name: test-artifact-directory
           path: artifacts
+
+      - name: Test directory downloaded
+        if: runner.os == 'Linux'
+        run: |
+          tree -L 2
+
+          files=("macos-13" "macos-14" "ubuntu-latest" "windows-latest")
+
+          for file in "${files[@]}"; do
+          
+            if [ -f "artifact-$file.txt" ]; then
+              echo "File artifact-$file.txt exists"
+            else
+              echo "Expected ./artifact-$file.txt not found"
+              exit 1
+            fi
+
+            if test -f artifacts/artifact-$file.txt; then
+              echo "Directory file found"
+            else
+              echo "Directory file not found"
+              exit 1
+            fi
+
+          done
+
+      - name: Install tree (MacOS)
+        if: runner.os == 'macOS'
+        run: brew install tree
+
+      - name: Install tree (Windows)
+        if: runner.os == 'Windows'
+        run: choco install tree
           
       - name: List artifacts
         shell: bash

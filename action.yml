@@ -13,7 +13,11 @@ inputs:
     description: Name of artifact to reference in this workflow.
     required: true
   path:
-    description: Path to artifact or directory of artifacts to upload.
+    description: |
+      Path to artifact or directory of artifacts to upload.
+      Note for downloading, this should always be a directory to unpack the artifact(s),
+      whereas with uploading, this can either be a directory to recursively upload or a
+      path to a single artifact.
     required: true
   profile:
     description: |
@@ -21,6 +25,7 @@ inputs:
       use current environment to configure credentials. For example setting
       AWS_ACCESS_KEY_ID and AWS_SECRESS_ACCESS_KEY or the ~/.aws/credentials file
     required: false
+    default: default
   prefix-key:
     description: |
       Any prefix to add to the auto-generated path to artifact(s) on S3 bucket.
@@ -31,7 +36,7 @@ inputs:
     description: |
       Unique id to this workflow, recommend keeping the default setting unless you know
       what you're doing
-    default: ${{ github.repository_owner }}/${{ github.repository }}/${{ github.run_number }}
+    default: ${{ github.repository }}/${{ github.run_number }}
 
 runs:
   using: composite

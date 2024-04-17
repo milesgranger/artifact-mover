@@ -8,8 +8,11 @@ use clap::{Parser, Subcommand};
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let shared_config = aws_config::load_from_env().await;
-    let client = Client::new(&shared_config);
+    let client = match cli.profile.as_ref() {
+        Some(profile) => Client::new(&aws_config::from_env().profile_name(profile).load().await),
+        None => Client::new(&aws_config::load_from_env().await),
+    };
+
     cli.execute(client).await?;
     Ok(())
 }
@@ -22,7 +25,7 @@ struct Cli {
     bucket: String,
 
     /// name of artifact
-    #[arg(short, long, global = true, help = "Name of artifact")]
+    #[arg(short, long, help = "Name of artifact")]
     name: String,
 
     /// path to artifact or directory
@@ -75,7 +78,7 @@ async fn run_upload(cli: &Cli, client: Client) -> Result<()> {
         let mut archiver = tar::Builder::new(&mut buffer);
         match cli.path.is_file() {
             true => archiver.append_path(&cli.path)?,
-            false => archiver.append_dir_all(&cli.path, ".")?,
+            false => archiver.append_dir_all(".", &cli.path)?,
         };
         archiver.finish()?;
     }
@@ -83,9 +86,10 @@ async fn run_upload(cli: &Cli, client: Client) -> Result<()> {
     let digest = md5::compute(&buffer);
 
     let key = format!(
-        "{}/{}/{:x}.tar.bz2",
+        "{}/{}/{}/{:x}.tar.zstd",
         cli.prefix_key.as_ref().unwrap_or(&"artifacts".to_string()),
-        cli.identifier.clone(),
+        &cli.identifier,
+        &cli.name,
         digest,
     );
 
@@ -93,7 +97,7 @@ async fn run_upload(cli: &Cli, client: Client) -> Result<()> {
         .put_object()
         .bucket(&cli.bucket)
         .key(&key)
-        .content_type("application/x-tar+bzip2")
+        .content_type("application/x-tar+zstd")
         .body(buffer.into())
         .send()
         .await?;
@@ -103,9 +107,10 @@ async fn run_upload(cli: &Cli, client: Client) -> Result<()> {
 
 async fn run_download(cli: &Cli, client: Client) -> Result<()> {
     let prefix = format!(
-        "{}/{}/",
+        "{}/{}/{}/",
         cli.prefix_key.as_ref().unwrap_or(&"artifacts".to_string()),
-        cli.identifier.clone()
+        &cli.identifier,
+        &cli.name
     );
     let mut resp = client
         .list_objects_v2()
@@ -118,7 +123,7 @@ async fn run_download(cli: &Cli, client: Client) -> Result<()> {
         let output = result?;
         for object in output.contents() {
             if let Some(key) = object.key() {
-                if key.ends_with("tar.bz2") {
+                if key.ends_with("tar.zstd") {
                     // TODO: Verify md5 hash in filename
                     let mut buffer = vec![];
                     let body = client
@@ -142,11 +147,11 @@ async fn run_download(cli: &Cli, client: Client) -> Result<()> {
 
 fn compress(buf: &[u8]) -> Result<Vec<u8>> {
     let mut out = vec![];
-    libcramjam::bzip2::compress(buf, &mut out, None)?;
+    libcramjam::zstd::compress(buf, &mut out, None)?;
     Ok(out)
 }
 fn decompress(buf: &[u8]) -> Result<Vec<u8>> {
     let mut out = vec![];
-    libcramjam::bzip2::decompress(buf, &mut out)?;
+    libcramjam::zstd::decompress(buf, &mut out)?;
     Ok(out)
 }
