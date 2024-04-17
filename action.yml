@@ -92,7 +92,7 @@ runs:
           --retry-delay 2 \
           $URL
 
-        unzip artifact-mover.zip
+        unzip -o artifact-mover.zip
         chmod +x ./artifact-mover
 
     - shell: bash
