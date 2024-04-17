@@ -1,0 +1,22 @@
+[package]
+name = "artifact-mover"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.82"
+aws-config = { version= "1.2.0", features = ["behavior-version-latest"] }
+aws-sdk-s3 = { version = "1.23.0", features = ["behavior-version-latest"] }
+clap = { version = "4.5.4", features = ["derive"] }
+libcramjam = "0.3.0"
+md5 = "0.7.0"
+tar = "0.4.40"
+tokio = { version = "1", features = ["full"] }
+
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1
+opt-level = "s"

@@ -1,0 +1,64 @@
+
+name: artifact-mover
+description: move artifact(s) to or from S3 (more platforms to come)
+inputs:
+  action:
+    description: |
+      'download' or 'upload'
+    required: true
+  bucket: 
+    description: Name of bucket to upload artifact to.
+    required: true
+  name: 
+    description: Name of artifact to reference in this workflow.
+    required: true
+  path:
+    description: Path to artifact or directory of artifacts to upload.
+    required: true
+  profile:
+    description: |
+      Name of AWS profile to use, defaults to 'default'. Attempting to
+      use current environment to configure credentials. For example setting
+      AWS_ACCESS_KEY_ID and AWS_SECRESS_ACCESS_KEY or the ~/.aws/credentials file
+    required: false
+  prefix-key:
+    description: |
+      Any prefix to add to the auto-generated path to artifact(s) on S3 bucket.
+      Only relavant for uploading. 
+    required: false
+    default: artifacts
+  identifier:
+    description: |
+      Unique id to this workflow, recommend keeping the default setting unless you know
+      what you're doing
+    default: ${{ github.repository_owner }}/${{ github.repository }}/${{ github.run_number }}
+
+runs:
+  using: composite
+  steps:
+    - uses: dtolnay/rust-toolchain@stable
+        
+    - shell: bash
+      run: |
+        # set -x
+
+        # curl \
+        #   -o artifact-mover.tar.gz \
+        #   --retry 5 \
+        #   --connect-timeout 10 \
+        #   --retry-connrefused \
+        #   --retry-delay 2 \
+        #   https://github.com/milesgranger/artifact-mover/releases/download/v${{ inputs.version }}/artifact-mover.tar.gz
+
+        # tar -xvzf artifact-mover.tar.gz -C ./bin
+        # chmod +x ./bin/artifact-mover
+
+        # ./bin/artifact-mover \
+        cargo run -- \
+          --bucket ${{ inputs.bucket }} \
+          --name ${{ inputs.name }} \
+          --path ${{ inputs.path }} \
+          --identifier ${{ inputs.identifier }} \
+          --profile ${{ inputs.profile }} \
+          --prefix-key ${{ inputs.prefix-key }} \
+          ${{ inputs.action }} 

@@ -1,0 +1,75 @@
+name: Test
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+    test:
+    name: Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-13
+          - macos-14
+          - ubuntu-latest
+          - windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create artifact
+        shell: bash
+        run: |
+          ls -l > artifact.txt
+          mkdir artifacts
+          cp artifact.txt artifacts/
+
+      - name: artifact-mover upload single file
+        uses: ./
+        with:
+          action: upload
+          bucket: ${{ secrets.TEST_BUCKET }}
+          name: test-artifact-single-file
+          path: ./artifact.txt
+
+      - name: artifact-mover upload directory
+        uses: ./
+        with:
+          action: upload
+          bucket: ${{ secrets.TEST_BUCKET }}
+          name: test-artifact-directory
+          path: artifacts
+
+      - name: Remove artifacts
+        shell: bash
+        run: |
+          rm artifact.txt
+          rm -rf artifacts/
+
+      - name: artifact-mover download single file
+        uses: ./
+        with:
+          action: download
+          bucket: ${{ secrets.TEST_BUCKET }}
+          name: test-artifact-single-file
+          path: ./artifact.txt
+
+      - name: artifact-mover download directory
+        uses: ./
+        with:
+          action: download
+          bucket: ${{ secrets.TEST_BUCKET }}
+          name: test-artifact-directory
+          path: artifacts
+          
+      - name: List artifacts
+        shell: bash
+        run: |
+          tree -L 2
