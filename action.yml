@@ -85,7 +85,7 @@ runs:
         set -x
 
         curl \
-          -o artifact-mover.zip \
+          -Lo artifact-mover.zip \
           --retry 5 \
           --connect-timeout 10 \
           --retry-connrefused \
